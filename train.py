@@ -6,7 +6,7 @@ import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
 from models.tacotron import Tacotron
-from utils.dataset import LJSpeechDataset
+from utils.dataset import KSSDataset
 from utils.audio import griffin_lim
 from utils.hparams import HParam
 from scipy.io import wavfile
@@ -15,7 +15,7 @@ import datetime
 hp = HParam("./config/default.yaml")
 
 # load dataset
-dataset = LJSpeechDataset(hp.data.path, hp.data.batch_size, hp.data.max_length)
+dataset = KSSDataset(hp.data.path, hp.data.batch_size)
 dataset = dataset.get_dataset()
 
 # load model
@@ -25,6 +25,7 @@ model = Tacotron(
     enc_units=hp.model.enc_units,
     dec_units=hp.model.dec_units,
     batch_size=hp.data.batch_size,
+    reduction=hp.model.reduction_factor,
 )
 
 # optimizer
@@ -52,30 +53,20 @@ else:
 
 # train
 @tf.function
-def train_step(inputs, targets):
+def train_step(text, mel, dec):
     with tf.GradientTape() as tape:
-        enc_output = model.encoder(inputs, training=True)
-        dec_hidden = enc_output[:, -1, :]
-        dec_input = tf.expand_dims([1] * hp.data.batch_size, 1)
-        predictions, _, _ = model.decoder(
-            dec_input, dec_hidden, enc_output, training=True
-        )
-        loss = tf.reduce_mean(
-            tf.keras.losses.sparse_categorical_crossentropy(
-                y_true=targets, y_pred=predictions, from_logits=True
-            )
-        )
-    variables = model.encoder.trainable_variables + model.decoder.trainable_variables
-    gradients = tape.gradient(loss, variables)
-    optimizer.apply_gradients(zip(gradients, variables))
-    return loss
+        predictions, alignment = model(text, dec)
+        loss = tf.reduce_mean(tf.keras.losses.mean_squared_error(mel, predictions))
+    gradients = tape.gradient(loss, model.trainable_variables)
+    optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+    return loss, alignment
 
 
 for epoch in range(hp.train.epochs):
     start = time.time()
     total_loss = 0.0
-    for batch, (inputs, targets) in enumerate(tqdm(dataset)):
-        loss = train_step(inputs, targets)
+    for batch, (text, mel, dec, text_len) in enumerate(tqdm(dataset)):
+        loss, alignment = train_step(text, mel, dec)
         total_loss += loss
         if batch % 100 == 0:
             print(
@@ -83,33 +74,39 @@ for epoch in range(hp.train.epochs):
             )
     # save checkpoint
     checkpoint_manager.save()
+    # plot alignment
+    alignment = np.squeeze(alignment, axis=0)
+    alignment = np.transpose(alignment, [1, 0])
+    alignment = alignment[: len(mel), : len(text)]
+    alignment = tf.expand_dims(alignment, axis=0)
     # tensorboard
     with train_summary_writer.as_default():
+        tf.summary.image("alignment", alignment, step=epoch)
         tf.summary.scalar("loss", total_loss / (batch + 1), step=epoch)
     print("Epoch {} Loss {:.4f}".format(epoch + 1, total_loss / (batch + 1)))
     print("Time taken for 1 epoch {} sec\n".format(time.time() - start))
 
 
-# synthesis
-def synthesis(text):
-    inputs = tf.convert_to_tensor([dataset.text_to_sequence(text)])
-    enc_output = model.encoder(inputs)
-    dec_hidden = enc_output[:, -1, :]
-    dec_input = tf.expand_dims([1], 0)
-    predictions, dec_hidden, alignments = model.decoder(
-        dec_input, dec_hidden, enc_output
-    )
-    predictions = tf.nn.softmax(predictions, axis=-1)
-    audio = griffin_lim(predictions)
-    return audio
+# # synthesis
+# def synthesis(text):
+#     inputs = tf.convert_to_tensor([dataset.text_to_sequence(text)])
+#     enc_output = model.encoder(inputs)
+#     dec_hidden = enc_output[:, -1, :]
+#     dec_input = tf.expand_dims([1], 0)
+#     predictions, dec_hidden, alignments = model.decoder(
+#         dec_input, dec_hidden, enc_output
+#     )
+#     predictions = tf.nn.softmax(predictions, axis=-1)
+#     audio = griffin_lim(predictions)
+#     return audio
 
 
-# save audio
-def save_audio(audio, path):
-    audio = audio.astype(np.float32)
-    audio = audio * 32767 / max(0.01, np.max(np.abs(audio)))
-    audio = audio.astype(np.int16)
-    wavfile.write(path, 22050, audio)
+# # save audio
+# def save_audio(audio, path):
+#     audio = audio.astype(np.float32)
+#     audio = audio * 32767 / max(0.01, np.max(np.abs(audio)))
+#     audio = audio.astype(np.int16)
+#     wavfile.write(path, 22050, audio)
 
 
 # synthesis

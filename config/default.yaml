@@ -1,0 +1,17 @@
+data:
+  path: ./data
+  batch_size: 32
+  max_length: 128
+
+model:
+  vocab_size: 80
+  embedding_dim: 256
+  enc_units: 128
+  dec_units: 256
+  reduction_factor: 5
+
+train:
+  lr: 0.001
+  epochs: 10
+  log_dir: ./logs/
+  checkpoint_dir: ./checkpoints

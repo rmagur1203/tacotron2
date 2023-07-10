@@ -12,21 +12,31 @@ from utils.hparams import HParam
 from scipy.io import wavfile
 import datetime
 
+resolver = tf.distribute.cluster_resolver.TPUClusterResolver(
+    tpu="grpc://" + os.environ["COLAB_TPU_ADDR"]
+)
+
+tf.config.experimental_connect_to_cluster(resolver)
+tf.tpu.experimental.initialize_tpu_system(resolver)
+
+strategy = tf.distribute.TPUStrategy(resolver)
+
 hp = HParam("./config/default.yaml")
 
 # load dataset
 dataset = KSSDataset(hp.data.path, hp.data.batch_size)
 dataset = dataset.get_dataset()
 
-# load model
-model = Tacotron(
-    vocab_size=hp.model.vocab_size,
-    embedding_dim=hp.model.embedding_dim,
-    enc_units=hp.model.enc_units,
-    dec_units=hp.model.dec_units,
-    batch_size=hp.data.batch_size,
-    reduction=hp.model.reduction_factor,
-)
+with strategy.scope():
+    # load model
+    model = Tacotron(
+        vocab_size=hp.model.vocab_size,
+        embedding_dim=hp.model.embedding_dim,
+        enc_units=hp.model.enc_units,
+        dec_units=hp.model.dec_units,
+        batch_size=hp.data.batch_size,
+        reduction=hp.model.reduction_factor,
+    )
 
 # optimizer
 optimizer = tf.keras.optimizers.Adam(learning_rate=hp.train.lr)

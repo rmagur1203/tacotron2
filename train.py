@@ -55,7 +55,7 @@ else:
 @tf.function
 def train_step(text, mel, dec):
     with tf.GradientTape() as tape:
-        predictions, alignment = model(text, dec)
+        predictions, alignment = model(text, dec, training=True)
         loss = tf.reduce_mean(tf.keras.losses.mean_squared_error(mel, predictions))
     gradients = tape.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
@@ -65,13 +65,11 @@ def train_step(text, mel, dec):
 for epoch in range(hp.train.epochs):
     start = time.time()
     total_loss = 0.0
-    for batch, (text, mel, dec, text_len) in enumerate(tqdm(dataset)):
+    for batch, (text, mel, dec, text_len) in enumerate(dataset):
         loss, alignment = train_step(text, mel, dec)
         total_loss += loss
-        if batch % 100 == 0:
-            print(
-                "Epoch {} Batch {} Loss {:.4f}".format(epoch + 1, batch, loss.numpy())
-            )
+        # if batch % 100 == 0:
+        print("Epoch {} Batch {} Loss {:.4f}".format(epoch + 1, batch, loss.numpy()))
     # save checkpoint
     checkpoint_manager.save()
     # plot alignment

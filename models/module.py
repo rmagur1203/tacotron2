@@ -27,6 +27,6 @@ class LuongAttension(tf.keras.layers.Layer):
 
     def __call__(self, query, values):
         score = tf.matmul(query, self.W(values), transpose_b=True)
-        alignment = tf.nn.softmax(score, axis=-1)
+        alignment = tf.nn.softmax(score)
         context_vector = tf.matmul(alignment, values)
         return context_vector, alignment

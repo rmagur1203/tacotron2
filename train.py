@@ -12,31 +12,21 @@ from utils.hparams import HParam
 from scipy.io import wavfile
 import datetime
 
-resolver = tf.distribute.cluster_resolver.TPUClusterResolver(
-    tpu="grpc://" + os.environ["COLAB_TPU_ADDR"]
-)
-
-tf.config.experimental_connect_to_cluster(resolver)
-tf.tpu.experimental.initialize_tpu_system(resolver)
-
-strategy = tf.distribute.TPUStrategy(resolver)
-
 hp = HParam("./config/default.yaml")
 
 # load dataset
 dataset = KSSDataset(hp.data.path, hp.data.batch_size)
 dataset = dataset.get_dataset()
 
-with strategy.scope():
-    # load model
-    model = Tacotron(
-        vocab_size=hp.model.vocab_size,
-        embedding_dim=hp.model.embedding_dim,
-        enc_units=hp.model.enc_units,
-        dec_units=hp.model.dec_units,
-        batch_size=hp.data.batch_size,
-        reduction=hp.model.reduction_factor,
-    )
+# load model
+model = Tacotron(
+    vocab_size=hp.model.vocab_size,
+    embedding_dim=hp.model.embedding_dim,
+    enc_units=hp.model.enc_units,
+    dec_units=hp.model.dec_units,
+    batch_size=hp.data.batch_size,
+    reduction=hp.model.reduction_factor,
+)
 
 # optimizer
 optimizer = tf.keras.optimizers.Adam(learning_rate=hp.train.lr)
@@ -62,7 +52,7 @@ else:
 
 
 # train
-@tf.function
+@tf.function(experimental_relax_shapes=True)
 def train_step(text, mel, dec):
     with tf.GradientTape() as tape:
         predictions, alignment = model(text, dec, training=True)
@@ -79,17 +69,24 @@ for epoch in range(hp.train.epochs):
         loss, alignment = train_step(text, mel, dec)
         total_loss += loss
         # if batch % 100 == 0:
-        print("Epoch {} Batch {} Loss {:.4f}".format(epoch + 1, batch, loss.numpy()))
+        print(
+            "Epoch {}/{} Batch {}/{} Loss {:.4f}".format(
+                epoch + 1, hp.train.epochs, batch + 1, len(dataset), loss.numpy()
+            )
+        )
     # save checkpoint
     checkpoint_manager.save()
     # plot alignment
-    alignment = np.squeeze(alignment, axis=0)
+    alignment = alignment[0].numpy()
+    alignment = np.squeeze(alignment)
     alignment = np.transpose(alignment, [1, 0])
-    alignment = alignment[: len(mel), : len(text)]
-    alignment = tf.expand_dims(alignment, axis=0)
+    alignment = tf.expand_dims(alignment, axis=-1)
+    alignment = (alignment - np.min(alignment)) / (
+        np.max(alignment) - np.min(alignment)
+    )
     # tensorboard
     with train_summary_writer.as_default():
-        tf.summary.image("alignment", alignment, step=epoch)
+        tf.summary.image("alignment", [alignment], step=epoch)
         tf.summary.scalar("loss", total_loss / (batch + 1), step=epoch)
     print("Epoch {} Loss {:.4f}".format(epoch + 1, total_loss / (batch + 1)))
     print("Time taken for 1 epoch {} sec\n".format(time.time() - start))

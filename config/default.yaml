@@ -3,6 +3,17 @@ data:
   batch_size: 32
   max_length: 128
 
+audio:
+  sample_rate: 22050
+  n_fft: 1024
+  win_length: 1024
+  hop_length: 256
+  n_mels: 80
+  preemphasis: 0.97
+  ref_db: 20
+  min_db: -100
+  max_db: 100
+
 model:
   vocab_size: 80
   embedding_dim: 256

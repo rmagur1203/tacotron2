@@ -50,8 +50,8 @@ class Decoder(tf.keras.Model):
             return_state=True,
             name="attension_rnn",
         )
-        # self.attension = LuongAttension(units=dec_units, name="attension")
-        self.attension = tf.keras.layers.Attention(use_scale=True, name="attension")
+        self.attension = LuongAttension(units=dec_units, name="attension")
+        # self.attension = tf.keras.layers.Attention(use_scale=True, name="attension")
         self.decoder_rnn = tf.keras.layers.GRU(
             units=dec_units,
             return_sequences=True,
@@ -64,7 +64,7 @@ class Decoder(tf.keras.Model):
         # x = self.embedding(inputs)
         x = self.prenet(inputs, training=training)
         x, state = self.attension_rnn(x)
-        context_vector, alignment = self.attension([x, enc_output])
+        context_vector, alignment = self.attension(x, enc_output)
         x, state = self.decoder_rnn(context_vector)
         x = self.fc(x)
         x = tf.reshape(x, (self.batch_size, -1, 80))

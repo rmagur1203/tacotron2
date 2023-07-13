@@ -25,8 +25,9 @@ class LuongAttension(tf.keras.layers.Layer):
         super(LuongAttension, self).__init__(name=name)
         self.W = tf.keras.layers.Dense(units=units, name="W")
 
-    def __call__(self, query, values):
-        score = tf.matmul(query, self.W(values), transpose_b=True)
-        alignment = tf.nn.softmax(score)
-        context_vector = tf.matmul(alignment, values)
-        return context_vector, alignment
+    def call(self, query, value):
+        alignment = tf.nn.softmax(tf.matmul(query, self.W(value), transpose_b=True))
+        context = tf.matmul(alignment, value)
+        context = tf.concat([context, query], axis=-1)
+        alignment = tf.transpose(alignment, [0, 2, 1])
+        return context, alignment

@@ -11,7 +11,6 @@ class Encoder(tf.Module):
     ):
         super(Encoder, self).__init__(name=name)
         self.batch_size = batch_size
-        self.enc_units = enc_units
         self.embedding = tf.keras.layers.Embedding(
             vocab_size, embedding_dim, name="embedding"
         )
@@ -95,3 +94,14 @@ class Tacotron(tf.keras.Model):
             dec_inputs, enc_output, training=training
         )
         return dec_output, alignment
+
+class PostNet(tf.keras.Model):
+    def __init__(self, mel_dim, n_fft, conv_dim=[256, 80], name="postnet"):
+        super(PostNet, self).__init__(name=name)
+        self.cbhg = CBHG(out_units=[mel_dim, mel_dim], conv_channels=conv_dim, name="cbhg")
+        self.fc = tf.keras.layers.Dense(units=n_fft // 2 + 1, name="fc")
+
+    def __call__(self, inputs, training=False):
+        x = self.cbhg(inputs, training=training)
+        x = self.fc(x)
+        return x

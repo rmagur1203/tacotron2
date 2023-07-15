@@ -2,10 +2,13 @@
 
 import os
 import time
+import librosa
 import numpy as np
+import scipy
 import tensorflow as tf
 from tqdm import tqdm
-from models.tacotron import Tacotron
+from models.cbhg import CBHG
+from models.tacotron import PostNet, Tacotron
 from utils.dataset import KSSDataset
 from utils.audio import griffin_lim
 from utils.hparams import HParam
@@ -27,6 +30,11 @@ model = Tacotron(
     batch_size=hp.data.batch_size,
     reduction=hp.model.reduction_factor,
 )
+
+# post_model = PostNet(
+#     mel_dim=hp.audio.n_mels,
+#     n_fft=hp.audio.n_fft,
+# )
 
 # optimizer
 optimizer = tf.keras.optimizers.Adam(learning_rate=hp.train.lr)
@@ -59,27 +67,71 @@ def train_step(text, mel, dec):
         loss = tf.reduce_mean(tf.keras.losses.mean_squared_error(mel, predictions))
     gradients = tape.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
-    return loss, alignment
+    return loss, predictions, alignment
+
+# @tf.function(experimental_relax_shapes=True)
+# def train_post_step(mel, spec):
+#     with tf.GradientTape() as tape:
+#         pred = post_model(mel, training=True)
+#         print(pred)
+#         loss = tf.reduce_mean(tf.keras.losses.mean_squared_error(spec, pred))
+#     gradients = tape.gradient(loss, post_model.trainable_variables)
+#     optimizer.apply_gradients(zip(gradients, post_model.trainable_variables))
+#     return loss, pred
 
 
 for epoch in range(hp.train.epochs):
     start = time.time()
     total_loss = 0.0
-    for batch, (text, mel, dec, text_len) in enumerate(dataset):
-        loss, alignment = train_step(text, mel, dec)
+    # total_loss_post = 0.0
+    for batch, (text, mel, dec, spec, text_len) in enumerate(dataset):
+        # print(text, mel, dec, spec, text_len)
+        loss, pred, alignment = train_step(text, mel, dec)
+        # loss_post, audio = train_post_step(mel, spec)
         total_loss += loss
+        # total_loss_post += loss_post
         # if batch % 100 == 0:
         print(
             "Epoch {}/{} Batch {}/{} Loss {:.4f}".format(
-                epoch + 1, hp.train.epochs, batch + 1, len(dataset), loss.numpy()
+                epoch + 1,
+                hp.train.epochs,
+                batch + 1,
+                dataset.cardinality().numpy(),
+                loss.numpy(),
             )
         )
+        # print(
+        #     "Epoch {}/{} Batch {}/{} Loss {:.4f} Loss_post {:.4f}".format(
+        #         epoch + 1,
+        #         hp.train.epochs,
+        #         batch + 1,
+        #         dataset.cardinality().numpy(),
+        #         loss.numpy(),
+        #         loss_post.numpy(),
+        #     )
+        # )
     # save checkpoint
     checkpoint_manager.save()
+    # save audio
+    # audio = audio[0].numpy()
+    # audio = np.squeeze(audio)
+    # audio = np.transpose(audio)
+    # audio = np.clip(audio, 0, 1) * hp.audio.max_db - hp.audio.max_db + hp.audio.ref_db
+    # audio = griffin_lim(audio, hp.audio.n_fft, hp.audio.hop_length, hp.audio.win_length, hp.audio.num_iters)
+    # audio = scipy.signal.lfilter([1], [1, -hp.audio.preemphasis], audio)
+    # audio = librosa.effects.trim(
+    #     audio, frame_length=hp.audio.win_length, hop_length=hp.audio.hop_length)[0]
+    # audio = audio.astype(np.float32)
+    
+    # wavfile.write(
+    #     "./audio/epoch{}_loss{:.4f}.wav".format(epoch + 1, total_loss / (batch + 1)),
+    #     22050,
+    #     audio,
+    # )
     # plot alignment
     alignment = alignment[0].numpy()
     alignment = np.squeeze(alignment)
-    alignment = np.transpose(alignment, [1, 0])
+    alignment = alignment[::-1]
     alignment = tf.expand_dims(alignment, axis=-1)
     alignment = (alignment - np.min(alignment)) / (
         np.max(alignment) - np.min(alignment)

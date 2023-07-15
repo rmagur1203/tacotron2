@@ -3,7 +3,6 @@ import numpy as np
 
 
 def griffin_lim(mag, n_fft, hop_length, win_length, num_iters):
-    librosa.gri
     """Reconstruct an audio signal from a spectrogram.
     """
     # mag = np.clip(mag, 0, np.inf)

@@ -20,7 +20,8 @@ def text_to_sequence(text):
     if not 0x1100 <= ord(text[0]) <= 0x1113:
         text = "".join(list(hangul_to_jamo(text)))
     for s in text:
-        sequence.append(_symbol_to_id[s])
+        if s in _symbol_to_id:
+            sequence.append(_symbol_to_id[s])
     sequence.append(_symbol_to_id["~"])
     return sequence
 

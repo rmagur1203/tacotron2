@@ -1,6 +1,6 @@
 data:
   path: ./data
-  batch_size: 32
+  batch_size: 48
   max_length: 128
 
 audio:
@@ -13,6 +13,7 @@ audio:
   ref_db: 20
   min_db: -100
   max_db: 100
+  num_iters: 100
 
 model:
   vocab_size: 80
@@ -23,6 +24,6 @@ model:
 
 train:
   lr: 0.001
-  epochs: 10
+  epochs: 100
   log_dir: ./logs/
   checkpoint_dir: ./checkpoints

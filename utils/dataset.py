@@ -46,17 +46,18 @@ class KSSDataset:
         text_list = sorted(glob(os.path.join(self.path + "/text", "*.npy")))
         mel_list = sorted(glob(os.path.join(self.path + "/mel", "*.npy")))
         dec_list = sorted(glob(os.path.join(self.path + "/dec", "*.npy")))
+        spec_list = sorted(glob(os.path.join(self.path + "/spec", "*.npy")))
         text_len = np.load(os.path.join(self.path + "/text_len.npy"))
 
         dataset = tf.data.Dataset.from_tensor_slices(
-            (text_list, mel_list, dec_list, text_len)
+            (text_list, mel_list, dec_list, spec_list, text_len)
         )
         dataset = dataset.map(
-            lambda text, mel, dec, text_len: tuple(
+            lambda text, mel, dec, spec, text_len: tuple(
                 tf.py_function(
                     self._load_data,
-                    [text, mel, dec, text_len],
-                    [tf.int32, tf.float32, tf.float32, tf.int32],
+                    [text, mel, dec, spec, text_len],
+                    [tf.int32, tf.float32, tf.float32, tf.float32, tf.int32],
                 )
             ),
             num_parallel_calls=tf.data.experimental.AUTOTUNE,
@@ -64,15 +65,16 @@ class KSSDataset:
         # dataset = dataset.shuffle(10000)
         dataset = dataset.padded_batch(
             self.batch_size,
-            padded_shapes=([None], [None, 80], [None, 80], []),
-            padding_values=(0, 0.0, 0.0, 0),
+            padded_shapes=([None], [None, 80], [None, 80], [None, None], []),
+            padding_values=(0, 0.0, 0.0, 0.0, 0),
             drop_remainder=True,
         )
         return dataset
 
-    def _load_data(self, text_path, mel_path, dec_path, text_len):
+    def _load_data(self, text_path, mel_path, dec_path, spec_path, text_len):
         text = np.load(text_path.numpy())
         mel = np.load(mel_path.numpy())
         dec = np.load(dec_path.numpy())
+        spec = np.load(spec_path.numpy())
         text_len = text_len.numpy()
-        return text, mel, dec, text_len
+        return text, mel, dec, spec, text_len

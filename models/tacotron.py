@@ -1,7 +1,7 @@
 import tensorflow as tf
 from models.cbhg import CBHG
 
-from models.module import LuongAttension, PreNet
+from models.module import LuongAttention, PreNet
 
 
 # tacotron Encoder
@@ -49,7 +49,7 @@ class Decoder(tf.keras.Model):
             return_state=True,
             name="attension_rnn",
         )
-        self.attension = LuongAttension(units=dec_units, name="attension")
+        self.attension = LuongAttention(units=dec_units, name="attention")
         # self.attension = tf.keras.layers.Attention(use_scale=True, name="attension")
         self.decoder_rnn = tf.keras.layers.GRU(
             units=dec_units,
@@ -95,10 +95,13 @@ class Tacotron(tf.keras.Model):
         )
         return dec_output, alignment
 
+
 class PostNet(tf.keras.Model):
     def __init__(self, mel_dim, n_fft, conv_dim=[256, 80], name="postnet"):
         super(PostNet, self).__init__(name=name)
-        self.cbhg = CBHG(out_units=[mel_dim, mel_dim], conv_channels=conv_dim, name="cbhg")
+        self.cbhg = CBHG(
+            out_units=[mel_dim, mel_dim], conv_channels=conv_dim, name="cbhg"
+        )
         self.fc = tf.keras.layers.Dense(units=n_fft // 2 + 1, name="fc")
 
     def __call__(self, inputs, training=False):

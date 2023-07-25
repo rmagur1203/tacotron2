@@ -69,28 +69,12 @@ def train_step(text, mel, dec):
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
     return loss, predictions, alignment
 
-# @tf.function(experimental_relax_shapes=True)
-# def train_post_step(mel, spec):
-#     with tf.GradientTape() as tape:
-#         pred = post_model(mel, training=True)
-#         print(pred)
-#         loss = tf.reduce_mean(tf.keras.losses.mean_squared_error(spec, pred))
-#     gradients = tape.gradient(loss, post_model.trainable_variables)
-#     optimizer.apply_gradients(zip(gradients, post_model.trainable_variables))
-#     return loss, pred
-
-
 for epoch in range(hp.train.epochs):
     start = time.time()
     total_loss = 0.0
-    # total_loss_post = 0.0
     for batch, (text, mel, dec, spec, text_len) in enumerate(dataset):
-        # print(text, mel, dec, spec, text_len)
         loss, pred, alignment = train_step(text, mel, dec)
-        # loss_post, audio = train_post_step(mel, spec)
         total_loss += loss
-        # total_loss_post += loss_post
-        # if batch % 100 == 0:
         print(
             "Epoch {}/{} Batch {}/{} Loss {:.4f}".format(
                 epoch + 1,
@@ -100,16 +84,6 @@ for epoch in range(hp.train.epochs):
                 loss.numpy(),
             )
         )
-        # print(
-        #     "Epoch {}/{} Batch {}/{} Loss {:.4f} Loss_post {:.4f}".format(
-        #         epoch + 1,
-        #         hp.train.epochs,
-        #         batch + 1,
-        #         dataset.cardinality().numpy(),
-        #         loss.numpy(),
-        #         loss_post.numpy(),
-        #     )
-        # )
     # save checkpoint
     checkpoint_manager.save()
     # save audio

@@ -47,18 +47,21 @@ if checkpoint_manager.latest_checkpoint:
 else:
     print("Initializing from scratch.")
 
-matplotlib.rc('font', family='NanumBarunGothic', size=14)
+matplotlib.rc("font", family="NanumBarunGothic", size=14)
+
+
 def plot_alignment(alignment, path, text):
-    text = text.rstrip('_').rstrip('~')
-    alignment = alignment[:len(text)]
-    _, ax = plt.subplots(figsize=(len(text)/3, 5))
-    ax.imshow(tf.transpose(alignment), aspect='auto', origin='lower')
-    plt.xlabel('Encoder timestep')
-    plt.ylabel('Decoder timestep')
-    text = [x if x != ' ' else '' for x in list(text)]
+    text = text.rstrip("_").rstrip("~")
+    alignment = alignment[: len(text)]
+    _, ax = plt.subplots(figsize=(len(text) / 3, 5))
+    ax.imshow(tf.transpose(alignment), aspect="auto", origin="lower")
+    plt.xlabel("Encoder timestep")
+    plt.ylabel("Decoder timestep")
+    text = [x if x != " " else "" for x in list(text)]
     plt.xticks(range(len(text)), text)
     plt.tight_layout()
-    plt.savefig(path, format='png')
+    plt.savefig(path, format="png")
+
 
 def generate(text, idx=0):
     seq = text_to_sequence(text)
@@ -68,19 +71,20 @@ def generate(text, idx=0):
     dec_input = np.zeros((1, seq_len, hp.audio.n_mels), dtype=np.float32)
 
     pred = []
-    for i in tqdm(range(1, seq_len+1)):
+    for i in tqdm(range(1, seq_len + 1)):
         mel_out, alignment = model(enc_input, dec_input, training=False)
         if i < seq_len:
             dec_input[:, i, :] = mel_out[:, reduction * i - 1, :]
-        pred.extend(mel_out[:, reduction * (i-1) : reduction * i, :])
+        pred.extend(mel_out[:, reduction * (i - 1) : reduction * i, :])
 
     pred = np.reshape(np.asarray(pred), [-1, hp.audio.n_mels])
     alignment = np.squeeze(alignment, axis=0)
 
-    np.save(os.path.join('output', 'mel-0'), pred, allow_pickle=False)
+    np.save(os.path.join("output", "mel-{0}".format(idx)), pred, allow_pickle=False)
 
     input_seq = sequence_to_text(seq)
-    alignment_dir = os.path.join("output", 'align-{}.png'.format(idx))
+    alignment_dir = os.path.join("output", "align-{}.png".format(idx))
     plot_alignment(alignment, alignment_dir, input_seq)
 
-generate("""그는 괜찮은척 하려고 애쓰는 것 같았다.""")
+
+generate("""3학년 3반 박금혁입니다.""", idx=1)
